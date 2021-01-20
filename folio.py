@@ -13,13 +13,10 @@ start_time = (datetime.now() - timedelta(days)).replace().isoformat()
 start_datetime = datetime.now()-timedelta(days)
 end_time = datetime.now().isoformat()
 
-auth_client = cbpro.AuthenticatedClient(keys.CBRPO_API_KEY,
-        keys.CBPRO_API_SECRET, keys.CBPRO_API_PASSWORD)
+auth_client = cbpro.AuthenticatedClient(keys.CBRPO_API_KEY, keys.CBPRO_API_SECRET, keys.CBPRO_API_PASSWORD)
 pub_cli = cbpro.PublicClient()
 
 a=auth_client.get_accounts()
-#a = auth_client.get_account('1bce17f4e758880e72959f940d8febd7')
-#a = auth_client.get_account_history('1bce17f4e758880e72959f940d8febd7')
 
 curr = []
 for x, acct in enumerate(a):
