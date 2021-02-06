@@ -6,87 +6,105 @@ import time
 from datetime import datetime, timedelta
 import numpy as np
 import keys
+from math import floor, log10
 
-days = 90
+def round_2(x):
+    return round(x, -int(floor(log10(abs(x)))))
 
-start_time = (datetime.now() - timedelta(days)).replace().isoformat()
-start_datetime = datetime.now()-timedelta(days)
-end_time = datetime.now().isoformat()
+def Rolling_Average(x, n):
+    avg = np.cumsum(x)
+    avg[n:] = avg[n:] - avg[:-n]
+    avg = avg[n-1:] / n
+    return avg
 
-auth_client = cbpro.AuthenticatedClient(keys.CBRPO_API_KEY, keys.CBPRO_API_SECRET, keys.CBPRO_API_PASSWORD)
-pub_cli = cbpro.PublicClient()
+def main():
+    days = 90
 
-a=auth_client.get_accounts()
+    start_time = (datetime.now() - timedelta(days)).replace().isoformat()
+    start_datetime = datetime.now()-timedelta(days)
+    end_time = datetime.now().isoformat()
 
-curr = []
-for x, acct in enumerate(a):
-    if float(acct['balance']) > 0.0:
-        if acct['currency'] != 'USD':
-            curr.append(acct['currency']+'-USD')
+    auth_client = cbpro.AuthenticatedClient(keys.CBRPO_API_KEY, keys.CBPRO_API_SECRET, keys.CBPRO_API_PASSWORD)
+    pub_cli = cbpro.PublicClient()
 
-print(curr)
-#fig, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(3, 2, sharey=False)
-fig, ax = plt.subplots(3, 2, sharey=False, sharex=True, gridspec_kw={'hspace':0})
+    coin = []
+    for x, acct in enumerate(auth_client.get_accounts()):
+        if float(acct['balance']) > 0.0:
+            if acct['currency'] != 'USD':
+                coin.append(acct['currency']+'-USD')
 
-ax = ax.flatten()
+    # PLOT
+    fig, ax = plt.subplots(3, 2, sharey=False, sharex=True, gridspec_kw={'hspace':0})
+    ax = ax.flatten()
 
-for z,x in enumerate(curr):
-    a = auth_client.get_fills(x)
-#a = auth_client.get_fills('BTC-USD')
-#print(a[3]['balance'])
+    # LOOP CURRENCIES
+    for z, coin_name in enumerate(coin):
+        fills = list(auth_client.get_fills(coin_name))         #needs to be a list
 
-    a = list(a)
-    print(a[0]['product_id'])
-    print(a[0]['price'])
-    t_btc_buy = a[0]['created_at']
+        coin_date = []
+        coin_size = []
+        coin_price = []
+        coin_total = 0
 
-    btc_date=[]
-    btc_price=[]
-    btc_size = []
 
-    for fills in a:
-        t=time.mktime(datetime.strptime(fills['created_at'],'%Y-%m-%dT%H:%M:%S.%fZ').timetuple())
-        t=datetime.fromtimestamp(t)
-        if t > start_datetime:
-        #btc_date.append(datetime.strptime(fills['created_at'],'%Y-%m-%dT%H:%M:%S.%fZ').date())
-            btc_date.append(t)
-            btc_price.append(float(fills['price']))
-            #btc_size.append(float(fills['size']))
-            size = float(fills['size'])
+        # PRIVATE FILLS
+        for fill in fills:
+            t = datetime.strptime(fill['created_at'],'%Y-%m-%dT%H:%M:%S.%fZ')
+            t = datetime.fromtimestamp(time.mktime(t.timetuple()))
+            coin_date.append(t)
+            coin_price.append(float(fill['price']))
+            coin_size.append(float(fill['size']))
+            if fill['side'] == 'sell':
+                coin_size[-1] = -1 * coin_size[-1]
+            coin_total = coin_total + coin_size[-1]
 
-    btc = pub_cli.get_product_historic_rates(x,start=start_time,end=end_time,granularity=86400)
-    btc.sort(key=lambda x: x[0])
-    btc = np.array(btc, dtype='object')
 
-    t_btc = []
-    for y in btc[:,0]:
-        #t_btc.append(datetime.fromtimestamp(y).strftime('%m-%d'))
-        t_btc.append(datetime.fromtimestamp(y))
+        # PUBLIC RATES
+        coin_rate = pub_cli.get_product_historic_rates(coin_name,start=start_time,end=end_time,granularity=86400)
+        coin_rate.sort(key=lambda coin_name: coin_name[0])
+        coin_rate = np.array(coin_rate, dtype='object')
 
-    #t = btc[:,0]
-    btc = btc[:,4]
+        coin_time = []
+        for y in coin_rate[:,0]:
+            coin_time.append(datetime.fromtimestamp(y))
 
-    btc_avg = np.cumsum(btc)
-    #average
-    n=20
-    btc_avg[n:] = btc_avg[n:] - btc_avg[:-n]
-    btc_avg = btc_avg[n-1:]/n
-    t_btc_avg = t_btc[n-1:]
+        coin_rate = coin_rate[:,4]
 
-    ax[z].plot(t_btc, btc)
-    ax[z].plot(t_btc_avg, btc_avg)
-    ax[z].scatter(btc_date,btc_price,marker='*')
-    ax[z].xaxis_date()
+        coin_avg = Rolling_Average(coin_rate, 20)
+        coin_avg_time = coin_time[20-1:]
 
-    #ax.set(xlabel='date' ylabel='$' title='btc')
-    #ax[z].set_title('ok')
-    ax[z].set(ylabel=x+' '+str(size))
+        # PRINT TABLES
+        print('\n')
+        print(fills[0]['product_id'], '{:#.6g}'.format(coin_total))
+        print('-'*40)
 
-    #ax[z].set_xticks(np.arange(0,len(btc),days/10))
-    locator = mdates.AutoDateLocator(minticks=3, maxticks=7)
-    formatter = mdates.ConciseDateFormatter(locator)
-    ax[z].xaxis.set_major_locator(locator)
-    ax[z].xaxis.set_major_formatter(formatter)
-    ax[z].grid(True)
+        for x in range(len(coin_size)):
+            print(
+                coin_date[x].strftime('%d %b %y'),'\t',
+                '{:#.6g}'.format(round(coin_price[x],2)),'\t',
+                '{:#.6g}'.format(round_2(coin_size[x])),'\t',)
 
-plt.show()
+
+        # CLEAR OUT OLD FILLS (for plotting)
+        coin_price = [p for x,p in enumerate(coin_price) if coin_date[x] > start_datetime]
+        coin_date = [x for x in coin_date if x > start_datetime]
+
+        # PLOTS
+        ax[z].plot(coin_time, coin_rate)
+        ax[z].plot(coin_avg_time, coin_avg)
+        ax[z].scatter(coin_date, coin_price, marker='*')
+        ax[z].xaxis_date()
+        ax[z].set(ylabel=coin_name + ' ' +str(coin_total))
+
+        locator = mdates.AutoDateLocator(minticks=3, maxticks=7)
+        formatter = mdates.ConciseDateFormatter(locator)
+        ax[z].xaxis.set_major_locator(locator)
+        ax[z].xaxis.set_major_formatter(formatter)
+        ax[z].grid(True)
+        if max(coin_rate) < 10:
+            ax[z].set_ylim([0, 10])
+
+    plt.show()
+
+if __name__ == '__main__':
+    main()
