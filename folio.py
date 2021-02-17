@@ -27,6 +27,8 @@ def main():
     auth_client = cbpro.AuthenticatedClient(keys.CBRPO_API_KEY, keys.CBPRO_API_SECRET, keys.CBPRO_API_PASSWORD)
     pub_cli = cbpro.PublicClient()
 
+    coin_val_total = 0
+    coin_val_orig_total = 0
     coin = []
     for x, acct in enumerate(auth_client.get_accounts()):
         if float(acct['balance']) > 0.0:
@@ -51,12 +53,15 @@ def main():
         for fill in fills:
             t = datetime.strptime(fill['created_at'],'%Y-%m-%dT%H:%M:%S.%fZ')
             t = datetime.fromtimestamp(time.mktime(t.timetuple()))
-            coin_date.append(t)
-            coin_price.append(float(fill['price']))
-            coin_size.append(float(fill['size']))
-            if fill['side'] == 'sell':
-                coin_size[-1] = -1 * coin_size[-1]
-            coin_total = coin_total + coin_size[-1]
+
+            if t > start_datetime:
+                coin_date.append(t)
+                coin_price.append(float(fill['price']))
+                coin_size.append(float(fill['size']))
+                if fill['side'] == 'sell':
+                    coin_size[-1] = -1 * coin_size[-1]
+                coin_total = coin_total + coin_size[-1]
+                coin_val_orig_total += coin_price[-1] * coin_size[-1]
 
 
         # PUBLIC RATES
@@ -73,9 +78,13 @@ def main():
         coin_avg = Rolling_Average(coin_rate, 20)
         coin_avg_time = coin_time[20-1:]
 
+        coin_val = coin_rate[-1] * coin_total
+        coin_val_total += coin_val
+
         # PRINT TABLES
+        # print :coin: :qty: :value:
         print('\n')
-        print(fills[0]['product_id'], '{:#.6g}'.format(coin_total))
+        print(fills[0]['product_id'], '{:#.6g}'.format(coin_total), '${:#.2f}'.format(coin_val))
         print('-'*40)
 
         for x in range(len(coin_size)):
@@ -86,8 +95,9 @@ def main():
 
 
         # CLEAR OUT OLD FILLS (for plotting)
-        coin_price = [p for x,p in enumerate(coin_price) if coin_date[x] > start_datetime]
-        coin_date = [x for x in coin_date if x > start_datetime]
+        # decided to not compute original BTC fills from 2017
+        #coin_price = [p for x,p in enumerate(coin_price) if coin_date[x] > start_datetime]
+        #coin_date = [x for x in coin_date if x > start_datetime]
 
         # PLOTS
         ax[z].plot(coin_time, coin_rate)
@@ -103,6 +113,12 @@ def main():
         ax[z].grid(True)
         if max(coin_rate) < 10:
             ax[z].set_ylim([0, 10])
+
+    print('\n')
+    print('-'*40)
+    print('START: ${:#.2f}'.format(coin_val_orig_total))
+    print('TOTAL: ${:#.2f}'.format(coin_val_total))
+    print('% INC: {:#.2f}%'.format(100*coin_val_total/coin_val_orig_total))
 
     plt.show()
 
