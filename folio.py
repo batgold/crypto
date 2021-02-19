@@ -104,7 +104,7 @@ def main():
         ax[z].plot(coin_avg_time, coin_avg)
         ax[z].scatter(coin_date, coin_price, marker='*')
         ax[z].xaxis_date()
-        ax[z].set(ylabel=coin_name + ' ' +str(coin_total))
+        ax[z].set(ylabel = coin_name)
 
         locator = mdates.AutoDateLocator(minticks=3, maxticks=7)
         formatter = mdates.ConciseDateFormatter(locator)
@@ -118,7 +118,7 @@ def main():
     print('-'*40)
     print('START: ${:#.2f}'.format(coin_val_orig_total))
     print('TOTAL: ${:#.2f}'.format(coin_val_total))
-    print('% INC: {:#.2f}%'.format(100*coin_val_total/coin_val_orig_total))
+    print('% INC: {:#.2f}%'.format(100*coin_val_total/coin_val_orig_total-100))
 
     plt.show()
 
