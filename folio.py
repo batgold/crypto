@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import keys
 from math import floor, log10
+import json
 
 def round_2(x):
     return round(x, -int(floor(log10(abs(x)))))
@@ -18,7 +19,7 @@ def Rolling_Average(x, n):
     return avg
 
 def main():
-    days = 90
+    days = 150
 
     start_time = (datetime.now() - timedelta(days)).replace().isoformat()
     start_datetime = datetime.now()-timedelta(days)
@@ -30,7 +31,12 @@ def main():
     coin_val_total = 0
     coin_val_orig_total = 0
     coin = []
+
+    #TODO
+    #accts = auth_client.get_accounts()
+    #acct = json.loads(json.dumps(accts))
     for x, acct in enumerate(auth_client.get_accounts()):
+
         if float(acct['balance']) > 0.0:
             if acct['currency'] != 'USD':
                 coin.append(acct['currency']+'-USD')
